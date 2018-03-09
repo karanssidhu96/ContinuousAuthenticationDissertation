@@ -3,9 +3,10 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import confusion_matrix, classification_report, precision_score
 from sklearn.model_selection import GridSearchCV
 from sklearn import preprocessing
-from numpy import reshape
+from numpy import reshape, nanmean, where, isnan, take
+from timeit import default_timer as timer
 
-NO_OF_FILES = 11
+NO_OF_FILES = 65
 
 #For 5 second windows -> 162000 windows of 500 rows -> 1st half genuine & second half fraudulent
 def create_training_window(training_data):
@@ -43,11 +44,25 @@ def create_testing_window(testing_data):
         windows.append(window)
     return windows
 
+def load_experiment(start, end, experiment):
+    for i in range(start, end):
+        training_files.append('Supervised_100_Hz/train_activity_experiment_f100_acc_exp' + str(experiment) + '_' + str(i) + '.csv')
+        testing_files.append('Supervised_100_Hz/test_activity_experiment_f100_acc_exp' + str(experiment) + '_' + str(i) + '.csv')
+
 def load_data():
     print('Loading data')
-    for i in range(10, 21):
-        training_files.append('Supervised_100_Hz/train_activity_experiment_f100_acc_exp1_' + str(i) + '.csv')
-        testing_files.append('Supervised_100_Hz/test_activity_experiment_f100_acc_exp1_' + str(i) + '.csv')
+    #start = 10
+    #end = 21
+    #for experiment in range(1,7):
+        #load_experiment(start, end, experiment)
+        #start = start + 10
+        #end = end + 10
+    load_experiment(10, 21, 1)
+    load_experiment(20, 31, 2)
+    load_experiment(30, 40, 3)
+    load_experiment(40, 51, 4)
+    load_experiment(50, 61, 5)
+    load_experiment(60, 71, 6)
 
 def seperate_data_from_labels(window, x, y):
     x_internal = []
@@ -79,14 +94,7 @@ def test_user(classifier, x, no_of_windows, rows_per_window):
     return predictions
 
 if __name__== '__main__':
-    training_files = []
-    testing_files = []
-    training_data = []
-    testing_data = []
-    x = []
-    y = []
-    test_x = []
-    test_y = []
+    training_files, testing_files, training_data, testing_data, x, y, test_x, test_y = [], [], [], [], [], [], [], []
 
     min_max_scaler = preprocessing.MinMaxScaler()
     linear_scaler_to_unit_variance = preprocessing.StandardScaler()
@@ -96,6 +104,8 @@ if __name__== '__main__':
     for i in range(NO_OF_FILES):
         current_train_file = pd.read_csv(training_files[i])
         current_test_file = pd.read_csv(testing_files[i])
+        print('Scaling and windowing user:', i)
+        #Fails on experiment 3 34
 
         #current_train_file = scaler_training(min_max_scaler, current_train_file)
         #current_test_file = scaler_testing(min_max_scaler, current_test_file)
@@ -114,18 +124,30 @@ if __name__== '__main__':
 
     classifier = RandomForestClassifier(n_estimators=50, random_state=101)
 
-    precision = 0
+    precision, avg_train_time, avg_test_time = 0, 0, 0
     for i in range(NO_OF_FILES):
-        print('Training User ',i+1)
+        print('Training User',i+1)
+        start_time = timer()
         train_user(classifier, x[i], y[i], 324, 4500)
+        end_time = timer()
+        training_time = end_time - start_time
+        print('Time to train user',i+1, ':', training_time)
         print('Testing User ',i+1)
+        start_time = timer()
         predictions = test_user(classifier, test_x[i], 108, 4500)
+        end_time = timer()
+        testing_time = end_time - start_time
+        print('Time to test user', i + 1, ':', testing_time)
 
         precision = precision + precision_score(test_y[i], predictions)
+        avg_train_time = avg_train_time + training_time
+        avg_test_time = avg_test_time + testing_time
 
     #confusion = confusion_matrix(actual, predictions)
     #print(confusion)
     #print(classification_report(actual, predictions))
     #print(precision_score(actual, predictions))
     precision = precision/NO_OF_FILES
-    print(precision)
+    avg_train_time = avg_train_time/NO_OF_FILES
+    avg_test_time = avg_test_time/NO_OF_FILES
+    print('Accuracy:', precision, "\nAverage Training Time Per User:", avg_train_time, "\nAverage Testing Time Per User:", avg_test_time)
