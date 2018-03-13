@@ -136,7 +136,7 @@ if __name__== '__main__':
         seperate_data_from_labels(testing_window, test_x, test_y)
 
     #classifier = RandomForestClassifier(n_estimators=50, random_state=101)
-    classifier = svm.SVC(kernel='sigmoid', gamma=0.0001, random_state=101)
+    classifier = svm.SVC(kernel='rbf', gamma=0.0001, random_state=101)
 
     precision, avg_train_time, avg_test_time = 0, 0, 0
     for i in range(NO_OF_FILES):
