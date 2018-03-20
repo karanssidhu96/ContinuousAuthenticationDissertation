@@ -2,7 +2,9 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import confusion_matrix, classification_report, precision_score
 from sklearn.model_selection import GridSearchCV
+from sklearn.linear_model import LogisticRegression
 from sklearn import preprocessing, svm
+from sklearn.neural_network import MLPClassifier
 from numpy import reshape
 from timeit import default_timer as timer
 
@@ -99,9 +101,9 @@ if __name__== '__main__':
     min_max_scaler = preprocessing.MinMaxScaler()
     linear_scaler_to_unit_variance = preprocessing.StandardScaler()
     # 100 Hz
-    load_data(100)
+    #load_data(100)
     # 25 Hz
-    #load_data(25)
+    load_data(25)
 
     print('Second Loop')
     for i in range(NO_OF_FILES):
@@ -120,11 +122,11 @@ if __name__== '__main__':
         testing_data.append(current_test_file)
 
         # 5 second window 100 Hz
-        training_window = create_window(training_data[i], NO_ROWS_TRAINING_100_HZ, ROWS_PER_WINDOW_100_HZ_5_SECONDS)
-        testing_window = create_window(testing_data[i], NO_ROWS_TESTING_100_HZ, ROWS_PER_WINDOW_100_HZ_5_SECONDS)
+        #training_window = create_window(training_data[i], NO_ROWS_TRAINING_100_HZ, ROWS_PER_WINDOW_100_HZ_5_SECONDS)
+        #testing_window = create_window(testing_data[i], NO_ROWS_TESTING_100_HZ, ROWS_PER_WINDOW_100_HZ_5_SECONDS)
         # 5 second window 25 Hz
-        #training_window = create_window(training_data[i], NO_ROWS_TRAINING_25_HZ, ROWS_PER_WINDOW_25_HZ_5_SECONDS)
-        #testing_window = create_window(testing_data[i], NO_ROWS_TESTING_25_HZ, ROWS_PER_WINDOW_25_HZ_5_SECONDS)
+        training_window = create_window(training_data[i], NO_ROWS_TRAINING_25_HZ, ROWS_PER_WINDOW_25_HZ_5_SECONDS)
+        testing_window = create_window(testing_data[i], NO_ROWS_TESTING_25_HZ, ROWS_PER_WINDOW_25_HZ_5_SECONDS)
         # 1 second window 100 Hz
         #training_window = create_window(training_data[i], NO_ROWS_TRAINING_100_HZ, ROWS_PER_WINDOW_100_HZ_1_SECOND)
         #testing_window = create_window(testing_data[i], NO_ROWS_TESTING_100_HZ, ROWS_PER_WINDOW_100_HZ_1_SECOND)
@@ -136,16 +138,18 @@ if __name__== '__main__':
         seperate_data_from_labels(testing_window, test_x, test_y)
 
     #classifier = RandomForestClassifier(n_estimators=50, random_state=101)
-    classifier = svm.SVC(kernel='rbf', gamma=0.0001, random_state=101)
+    #classifier = svm.SVC(kernel='rbf', C=100, gamma=0.0001, random_state=101)
+    #classifier = LogisticRegression(C=100, random_state=101)
+    classifier = MLPClassifier(hidden_layer_sizes=(562,281), activation='tanh', random_state=101, alpha=0.01, max_iter=400)
 
     precision, avg_train_time, avg_test_time = 0, 0, 0
     for i in range(NO_OF_FILES):
         print('Training User',i+1)
         start_time = timer()
         #5 Seconds Training 100 Hz
-        train_user(classifier, x[i], y[i], 324, 4500)
+        #(classifier, x[i], y[i], 324, 4500)
         # 5 Seconds Training 25 Hz
-        #train_user(classifier, x[i], y[i], 324, 1125)
+        train_user(classifier, x[i], y[i], 324, 1125)
         #1 Second Training 100 Hz
         #train_user(classifier, x[i], y[i], 1620, 900)
         #1 Second Training 25Hz
@@ -156,9 +160,9 @@ if __name__== '__main__':
         print('Testing User ',i+1)
         start_time = timer()
         # 5 Seconds Testing 100 Hz
-        predictions = test_user(classifier, test_x[i], 108, 4500)
+        #predictions = test_user(classifier, test_x[i], 108, 4500)
         # 5 Seconds Testing 25
-        #predictions = test_user(classifier, test_x[i], 108, 1125)
+        predictions = test_user(classifier, test_x[i], 108, 1125)
         # 1 Second Testing 100 Hz
         #predictions = test_user(classifier, test_x[i], 540, 900)
         # 1 Second Testing 25 Hz
