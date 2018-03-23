@@ -20,6 +20,10 @@ NO_ROWS_TRAINING_25_HZ = 40500
 NO_ROWS_TESTING_25_HZ = 13500
 ROWS_PER_WINDOW_25_HZ_5_SECONDS = 125
 ROWS_PER_WINDOW_25_HZ_1_SECOND = 25
+HZ = 100
+WINDOW = 5
+CLASSIFIER = 'Random Forest'
+SCALING = 'Normalization'
 
 
 #For 5 second windows -> 162000 rows total, 500 rows per window -> 1st half genuine & second half fraudulent
@@ -53,15 +57,10 @@ def load_experiment_25_Hz(start, end, experiment):
 
 def load_data(frequency):
     print('Loading data')
-    #start = 10
-    #end = 21
-    #for experiment in range(1,7):
-        #load_experiment(start, end, experiment)
-        #start = start + 10
-        #end = end + 10
     load_experiment(10, 21, 1, frequency)
     load_experiment(20, 31, 2, frequency)
     load_experiment(30, 40, 3, frequency)
+    # Fails on experiment 3 34 both frequencies
     load_experiment(40, 51, 4, frequency)
     load_experiment(50, 61, 5, frequency)
     load_experiment(60, 71, 6, frequency)
@@ -100,73 +99,98 @@ if __name__== '__main__':
 
     min_max_scaler = preprocessing.MinMaxScaler()
     linear_scaler_to_unit_variance = preprocessing.StandardScaler()
-    # 100 Hz
-    #load_data(100)
-    # 25 Hz
-    load_data(25)
+
+    load_data(HZ)
 
     print('Second Loop')
     for i in range(NO_OF_FILES):
         current_train_file = pd.read_csv(training_files[i])
         current_test_file = pd.read_csv(testing_files[i])
         print('Scaling and windowing user:', i)
-        #Fails on experiment 3 34 both frequencies
-
-        #current_train_file = scaler_training(min_max_scaler, current_train_file)
-        #current_test_file = scaler_testing(min_max_scaler, current_test_file)
-
-        current_train_file = scaler_training(linear_scaler_to_unit_variance, current_train_file)
-        current_test_file = scaler_testing(linear_scaler_to_unit_variance, current_test_file)
+        if SCALING == 'Normalization':
+            current_train_file = scaler_training(min_max_scaler, current_train_file)
+            current_test_file = scaler_testing(min_max_scaler, current_test_file)
+        else:
+            current_train_file = scaler_training(linear_scaler_to_unit_variance, current_train_file)
+            current_test_file = scaler_testing(linear_scaler_to_unit_variance, current_test_file)
 
         training_data.append(current_train_file)
         testing_data.append(current_test_file)
 
-        # 5 second window 100 Hz
-        #training_window = create_window(training_data[i], NO_ROWS_TRAINING_100_HZ, ROWS_PER_WINDOW_100_HZ_5_SECONDS)
-        #testing_window = create_window(testing_data[i], NO_ROWS_TESTING_100_HZ, ROWS_PER_WINDOW_100_HZ_5_SECONDS)
-        # 5 second window 25 Hz
-        training_window = create_window(training_data[i], NO_ROWS_TRAINING_25_HZ, ROWS_PER_WINDOW_25_HZ_5_SECONDS)
-        testing_window = create_window(testing_data[i], NO_ROWS_TESTING_25_HZ, ROWS_PER_WINDOW_25_HZ_5_SECONDS)
-        # 1 second window 100 Hz
-        #training_window = create_window(training_data[i], NO_ROWS_TRAINING_100_HZ, ROWS_PER_WINDOW_100_HZ_1_SECOND)
-        #testing_window = create_window(testing_data[i], NO_ROWS_TESTING_100_HZ, ROWS_PER_WINDOW_100_HZ_1_SECOND)
-        # 1 Second Window 25 Hz
-        #training_window = create_window(training_data[i], NO_ROWS_TRAINING_25_HZ, ROWS_PER_WINDOW_25_HZ_1_SECOND)
-        #testing_window = create_window(testing_data[i], NO_ROWS_TESTING_25_HZ, ROWS_PER_WINDOW_25_HZ_1_SECOND)
+        if HZ == 100:
+            if WINDOW == 5:
+                # 5 second window 100 Hz
+                training_window = create_window(training_data[i], NO_ROWS_TRAINING_100_HZ,
+                                                ROWS_PER_WINDOW_100_HZ_5_SECONDS)
+                testing_window = create_window(testing_data[i], NO_ROWS_TESTING_100_HZ,
+                                               ROWS_PER_WINDOW_100_HZ_5_SECONDS)
+            else:
+                # 1 second window 100 Hz
+                training_window = create_window(training_data[i], NO_ROWS_TRAINING_100_HZ,
+                                                ROWS_PER_WINDOW_100_HZ_1_SECOND)
+                testing_window = create_window(testing_data[i], NO_ROWS_TESTING_100_HZ, ROWS_PER_WINDOW_100_HZ_1_SECOND)
+
+        else:
+            if WINDOW == 5:
+                # 5 second window 25 Hz
+                training_window = create_window(training_data[i], NO_ROWS_TRAINING_25_HZ,
+                                                ROWS_PER_WINDOW_25_HZ_5_SECONDS)
+                testing_window = create_window(testing_data[i], NO_ROWS_TESTING_25_HZ, ROWS_PER_WINDOW_25_HZ_5_SECONDS)
+            else:
+                # 1 Second Window 25 Hz
+                training_window = create_window(training_data[i], NO_ROWS_TRAINING_25_HZ,
+                                                ROWS_PER_WINDOW_25_HZ_1_SECOND)
+                testing_window = create_window(testing_data[i], NO_ROWS_TESTING_25_HZ, ROWS_PER_WINDOW_25_HZ_1_SECOND)
 
         seperate_data_from_labels(training_window, x, y)
         seperate_data_from_labels(testing_window, test_x, test_y)
 
-    #classifier = RandomForestClassifier(n_estimators=50, random_state=101)
-    #classifier = svm.SVC(kernel='rbf', C=100, gamma=0.0001, random_state=101)
-    #classifier = LogisticRegression(C=100, random_state=101)
-    classifier = MLPClassifier(hidden_layer_sizes=(562,281), activation='tanh', random_state=101, alpha=0.01, max_iter=400)
+        if CLASSIFIER == 'Random Forest':
+            classifier = RandomForestClassifier(n_estimators=50, random_state=101)
+        elif CLASSIFIER == 'SVM':
+            classifier = svm.SVC(kernel='rbf', C=100, gamma=0.0001, random_state=101)
+        elif CLASSIFIER == 'Logistic Regression':
+            classifier = LogisticRegression(C=100, random_state=101)
+        else:
+            classifier = MLPClassifier(hidden_layer_sizes=(450,225), activation='tanh', random_state=101, alpha=0.01, max_iter=400)
 
     precision, avg_train_time, avg_test_time = 0, 0, 0
     for i in range(NO_OF_FILES):
         print('Training User',i+1)
         start_time = timer()
-        #5 Seconds Training 100 Hz
-        #(classifier, x[i], y[i], 324, 4500)
-        # 5 Seconds Training 25 Hz
-        train_user(classifier, x[i], y[i], 324, 1125)
-        #1 Second Training 100 Hz
-        #train_user(classifier, x[i], y[i], 1620, 900)
-        #1 Second Training 25Hz
-        #train_user(classifier, x[i], y[i], 1620, 225)
+        if HZ == 100:
+            if WINDOW == 5:
+                #5 Seconds Training 100 Hz
+                train_user(classifier, x[i], y[i], 324, 4500)
+            else:
+                # 1 Second Training 100 Hz
+                train_user(classifier, x[i], y[i], 1620, 900)
+        else:
+            if WINDOW == 5:
+                # 5 Seconds Training 25 Hz
+                train_user(classifier, x[i], y[i], 324, 1125)
+            else:
+                #1 Second Training 25Hz
+                train_user(classifier, x[i], y[i], 1620, 225)
         end_time = timer()
         training_time = end_time - start_time
         print('Time to train user',i+1, ':', training_time)
         print('Testing User ',i+1)
         start_time = timer()
-        # 5 Seconds Testing 100 Hz
-        #predictions = test_user(classifier, test_x[i], 108, 4500)
-        # 5 Seconds Testing 25
-        predictions = test_user(classifier, test_x[i], 108, 1125)
-        # 1 Second Testing 100 Hz
-        #predictions = test_user(classifier, test_x[i], 540, 900)
-        # 1 Second Testing 25 Hz
-        #predictions = test_user(classifier, test_x[i], 540, 225)
+        if HZ == 100:
+            if WINDOW == 5:
+                # 5 Seconds Testing 100 Hz
+                predictions = test_user(classifier, test_x[i], 108, 4500)
+            else:
+                # 1 Second Testing 100 Hz
+                predictions = test_user(classifier, test_x[i], 540, 900)
+        else:
+            if WINDOW == 5:
+                # 5 Seconds Testing 25
+                predictions = test_user(classifier, test_x[i], 108, 1125)
+            else:
+                # 1 Second Testing 25 Hz
+                predictions = test_user(classifier, test_x[i], 540, 225)
         end_time = timer()
         testing_time = end_time - start_time
         print('Time to test user', i + 1, ':', testing_time)
