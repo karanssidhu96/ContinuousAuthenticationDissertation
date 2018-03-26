@@ -22,7 +22,7 @@ NO_ROWS_TESTING_25_HZ = 13500
 ROWS_PER_WINDOW_25_HZ_5_SECONDS = 125
 ROWS_PER_WINDOW_25_HZ_1_SECOND = 25
 HZ = 100
-WINDOW = 1
+WINDOW = 5
 CLASSIFIER = 'SVM'
 SCALING = 'Standardization'
 FEATURE_ENGINEERING = True
@@ -217,7 +217,7 @@ if __name__== '__main__':
         if CLASSIFIER == 'Random Forest':
             classifier = RandomForestClassifier(n_estimators=50, random_state=101)
         elif CLASSIFIER == 'SVM':
-            classifier = svm.SVC(kernel='rbf', C=1, gamma=0.0001, random_state=101)
+            classifier = svm.SVC(kernel='rbf', C=100, gamma=0.0001, random_state=101)
         elif CLASSIFIER == 'Logistic Regression':
             classifier = LogisticRegression(C=100, random_state=101)
         else:
