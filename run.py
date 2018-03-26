@@ -5,8 +5,9 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.linear_model import LogisticRegression
 from sklearn import preprocessing, svm
 from sklearn.neural_network import MLPClassifier
-from numpy import reshape
+from numpy import reshape, mean, std, var
 from timeit import default_timer as timer
+from scipy.stats import iqr, skew, kurtosis
 
 NO_OF_FILES = 65
 NO_OF_FEATURES = 9
@@ -21,9 +22,10 @@ NO_ROWS_TESTING_25_HZ = 13500
 ROWS_PER_WINDOW_25_HZ_5_SECONDS = 125
 ROWS_PER_WINDOW_25_HZ_1_SECOND = 25
 HZ = 100
-WINDOW = 5
-CLASSIFIER = 'Random Forest'
-SCALING = 'Normalization'
+WINDOW = 1
+CLASSIFIER = 'SVM'
+SCALING = 'Standardization'
+FEATURE_ENGINEERING = True
 
 
 #For 5 second windows -> 162000 rows total, 500 rows per window -> 1st half genuine & second half fraudulent
@@ -40,6 +42,39 @@ def create_window(data, no_rows_per_file, no_rows_per_window):
         window = []
         for j in range(NO_OF_FEATURES):
             window.append(data.iloc[i:i + no_rows_per_window, j].values)
+        window.append(FRAUDULENT_LABEL)
+        windows.append(window)
+    return windows
+
+def create_window_FE(data, no_rows_per_file, no_rows_per_window):
+    windows = []
+    for i in range(0,int(no_rows_per_file/2),no_rows_per_window):
+        window = []
+        for j in range(NO_OF_FEATURES):
+            feature_raw = data.iloc[i:i + no_rows_per_window, j].values
+            window.append(max(feature_raw))
+            window.append(min(feature_raw))
+            window.append(mean(feature_raw))
+            window.append(std(feature_raw))
+            window.append(iqr(feature_raw))
+            window.append(var(feature_raw))
+            window.append(skew(feature_raw))
+            window.append(kurtosis(feature_raw))
+        window.append(GENUINE_LABEL)
+        windows.append(window)
+
+    for i in range(int(no_rows_per_file/2), no_rows_per_file,no_rows_per_window):
+        window = []
+        for j in range(NO_OF_FEATURES):
+            feature_raw = data.iloc[i:i + no_rows_per_window, j].values
+            window.append(max(feature_raw))
+            window.append(min(feature_raw))
+            window.append(mean(feature_raw))
+            window.append(std(feature_raw))
+            window.append(iqr(feature_raw))
+            window.append(var(feature_raw))
+            window.append(skew(feature_raw))
+            window.append(kurtosis(feature_raw))
         window.append(FRAUDULENT_LABEL)
         windows.append(window)
     return windows
@@ -94,6 +129,14 @@ def test_user(classifier, x, no_of_windows, rows_per_window):
     predictions = classifier.predict(x_input)
     return predictions
 
+def normalization_linear_scaler(current_train_file, current_test_file):
+    if SCALING == 'Normalization':
+        training_data.append(scaler_training(min_max_scaler, current_train_file))
+        testing_data.append(scaler_testing(min_max_scaler, current_test_file))
+    else:
+        training_data.append(scaler_training(linear_scaler_to_unit_variance, current_train_file))
+        testing_data.append(scaler_testing(linear_scaler_to_unit_variance, current_test_file))
+
 if __name__== '__main__':
     training_files, testing_files, training_data, testing_data, x, y, test_x, test_y = [], [], [], [], [], [], [], []
 
@@ -107,40 +150,66 @@ if __name__== '__main__':
         current_train_file = pd.read_csv(training_files[i])
         current_test_file = pd.read_csv(testing_files[i])
         print('Scaling and windowing user:', i)
-        if SCALING == 'Normalization':
-            current_train_file = scaler_training(min_max_scaler, current_train_file)
-            current_test_file = scaler_testing(min_max_scaler, current_test_file)
-        else:
-            current_train_file = scaler_training(linear_scaler_to_unit_variance, current_train_file)
-            current_test_file = scaler_testing(linear_scaler_to_unit_variance, current_test_file)
 
-        training_data.append(current_train_file)
-        testing_data.append(current_test_file)
+        if FEATURE_ENGINEERING:
+            if HZ == 100:
+                if WINDOW == 5:
+                    # 5 second window 100 Hz
+                    training_window = create_window_FE(current_train_file, NO_ROWS_TRAINING_100_HZ,
+                                                    ROWS_PER_WINDOW_100_HZ_5_SECONDS)
+                    testing_window = create_window_FE(current_test_file, NO_ROWS_TESTING_100_HZ,
+                                                   ROWS_PER_WINDOW_100_HZ_5_SECONDS)
+                else:
+                    # 1 second window 100 Hz
+                    training_window = create_window_FE(current_train_file, NO_ROWS_TRAINING_100_HZ,
+                                                    ROWS_PER_WINDOW_100_HZ_1_SECOND)
+                    testing_window = create_window_FE(current_test_file, NO_ROWS_TESTING_100_HZ,
+                                                   ROWS_PER_WINDOW_100_HZ_1_SECOND)
 
-        if HZ == 100:
-            if WINDOW == 5:
-                # 5 second window 100 Hz
-                training_window = create_window(training_data[i], NO_ROWS_TRAINING_100_HZ,
-                                                ROWS_PER_WINDOW_100_HZ_5_SECONDS)
-                testing_window = create_window(testing_data[i], NO_ROWS_TESTING_100_HZ,
-                                               ROWS_PER_WINDOW_100_HZ_5_SECONDS)
             else:
-                # 1 second window 100 Hz
-                training_window = create_window(training_data[i], NO_ROWS_TRAINING_100_HZ,
-                                                ROWS_PER_WINDOW_100_HZ_1_SECOND)
-                testing_window = create_window(testing_data[i], NO_ROWS_TESTING_100_HZ, ROWS_PER_WINDOW_100_HZ_1_SECOND)
+                if WINDOW == 5:
+                    # 5 second window 25 Hz
+                    training_window = create_window_FE(current_train_file, NO_ROWS_TRAINING_25_HZ,
+                                                    ROWS_PER_WINDOW_25_HZ_5_SECONDS)
+                    testing_window = create_window_FE(current_test_file, NO_ROWS_TESTING_25_HZ,
+                                                   ROWS_PER_WINDOW_25_HZ_5_SECONDS)
+                else:
+                    # 1 Second Window 25 Hz
+                    training_window = create_window_FE(current_train_file, NO_ROWS_TRAINING_25_HZ,
+                                                    ROWS_PER_WINDOW_25_HZ_1_SECOND)
+                    testing_window = create_window_FE(current_test_file, NO_ROWS_TESTING_25_HZ,
+                                                   ROWS_PER_WINDOW_25_HZ_1_SECOND)
+
+            normalization_linear_scaler(training_window, testing_window)
 
         else:
-            if WINDOW == 5:
-                # 5 second window 25 Hz
-                training_window = create_window(training_data[i], NO_ROWS_TRAINING_25_HZ,
-                                                ROWS_PER_WINDOW_25_HZ_5_SECONDS)
-                testing_window = create_window(testing_data[i], NO_ROWS_TESTING_25_HZ, ROWS_PER_WINDOW_25_HZ_5_SECONDS)
+
+            normalization_linear_scaler(current_train_file, current_test_file)
+
+            if HZ == 100:
+                if WINDOW == 5:
+                    # 5 second window 100 Hz
+                    training_window = create_window(training_data[i], NO_ROWS_TRAINING_100_HZ,
+                                                    ROWS_PER_WINDOW_100_HZ_5_SECONDS)
+                    testing_window = create_window(testing_data[i], NO_ROWS_TESTING_100_HZ,
+                                                   ROWS_PER_WINDOW_100_HZ_5_SECONDS)
+                else:
+                    # 1 second window 100 Hz
+                    training_window = create_window(training_data[i], NO_ROWS_TRAINING_100_HZ,
+                                                    ROWS_PER_WINDOW_100_HZ_1_SECOND)
+                    testing_window = create_window(testing_data[i], NO_ROWS_TESTING_100_HZ, ROWS_PER_WINDOW_100_HZ_1_SECOND)
+
             else:
-                # 1 Second Window 25 Hz
-                training_window = create_window(training_data[i], NO_ROWS_TRAINING_25_HZ,
-                                                ROWS_PER_WINDOW_25_HZ_1_SECOND)
-                testing_window = create_window(testing_data[i], NO_ROWS_TESTING_25_HZ, ROWS_PER_WINDOW_25_HZ_1_SECOND)
+                if WINDOW == 5:
+                    # 5 second window 25 Hz
+                    training_window = create_window(training_data[i], NO_ROWS_TRAINING_25_HZ,
+                                                    ROWS_PER_WINDOW_25_HZ_5_SECONDS)
+                    testing_window = create_window(testing_data[i], NO_ROWS_TESTING_25_HZ, ROWS_PER_WINDOW_25_HZ_5_SECONDS)
+                else:
+                    # 1 Second Window 25 Hz
+                    training_window = create_window(training_data[i], NO_ROWS_TRAINING_25_HZ,
+                                                    ROWS_PER_WINDOW_25_HZ_1_SECOND)
+                    testing_window = create_window(testing_data[i], NO_ROWS_TESTING_25_HZ, ROWS_PER_WINDOW_25_HZ_1_SECOND)
 
         seperate_data_from_labels(training_window, x, y)
         seperate_data_from_labels(testing_window, test_x, test_y)
@@ -148,7 +217,7 @@ if __name__== '__main__':
         if CLASSIFIER == 'Random Forest':
             classifier = RandomForestClassifier(n_estimators=50, random_state=101)
         elif CLASSIFIER == 'SVM':
-            classifier = svm.SVC(kernel='rbf', C=100, gamma=0.0001, random_state=101)
+            classifier = svm.SVC(kernel='rbf', C=1, gamma=0.0001, random_state=101)
         elif CLASSIFIER == 'Logistic Regression':
             classifier = LogisticRegression(C=100, random_state=101)
         else:
@@ -158,7 +227,12 @@ if __name__== '__main__':
     for i in range(NO_OF_FILES):
         print('Training User',i+1)
         start_time = timer()
-        if HZ == 100:
+        if FEATURE_ENGINEERING:
+            if WINDOW == 5:
+                train_user(classifier, x[i], y[i], 324, 72)
+            else:
+                train_user(classifier, x[i], y[i], 1620, 72)
+        elif HZ == 100:
             if WINDOW == 5:
                 #5 Seconds Training 100 Hz
                 train_user(classifier, x[i], y[i], 324, 4500)
@@ -177,7 +251,12 @@ if __name__== '__main__':
         print('Time to train user',i+1, ':', training_time)
         print('Testing User ',i+1)
         start_time = timer()
-        if HZ == 100:
+        if FEATURE_ENGINEERING:
+            if WINDOW == 5:
+                predictions = test_user(classifier, test_x[i], 108, 72)
+            else:
+                predictions = test_user(classifier, test_x[i], 540, 72)
+        elif HZ == 100:
             if WINDOW == 5:
                 # 5 Seconds Testing 100 Hz
                 predictions = test_user(classifier, test_x[i], 108, 4500)
