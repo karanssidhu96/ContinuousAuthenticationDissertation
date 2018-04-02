@@ -5,7 +5,7 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.linear_model import LogisticRegression
 from sklearn import preprocessing, svm
 from sklearn.neural_network import MLPClassifier
-from numpy import reshape, mean, std, var
+from numpy import reshape, mean, std, var, cov
 from timeit import default_timer as timer
 from scipy.stats import iqr, skew, kurtosis
 
@@ -23,9 +23,11 @@ ROWS_PER_WINDOW_25_HZ_5_SECONDS = 125
 ROWS_PER_WINDOW_25_HZ_1_SECOND = 25
 HZ = 100
 WINDOW = 5
-CLASSIFIER = 'SVM'
+CLASSIFIER = 'Random Forest'
 SCALING = 'Standardization'
+#Normalization
 FEATURE_ENGINEERING = True
+CORRELATIONS = True
 
 
 #For 5 second windows -> 162000 rows total, 500 rows per window -> 1st half genuine & second half fraudulent
@@ -49,35 +51,59 @@ def create_window(data, no_rows_per_file, no_rows_per_window):
 def create_window_FE(data, no_rows_per_file, no_rows_per_window):
     windows = []
     for i in range(0,int(no_rows_per_file/2),no_rows_per_window):
-        window = []
+        window, means, SDs = [], [], []
         for j in range(NO_OF_FEATURES):
             feature_raw = data.iloc[i:i + no_rows_per_window, j].values
-            window.append(max(feature_raw))
-            window.append(min(feature_raw))
-            window.append(mean(feature_raw))
-            window.append(std(feature_raw))
-            window.append(iqr(feature_raw))
-            window.append(var(feature_raw))
-            window.append(skew(feature_raw))
-            window.append(kurtosis(feature_raw))
+            window.extend(fe_stats(feature_raw))
+            means.append(mean(feature_raw))
+            SDs.append(std(feature_raw))
+            if j != 0 and j % 3 == 0 and CORRELATIONS or j == 8 and CORRELATIONS:
+                window.append(correlation(means[0], means[1], SDs[0], SDs[1]))
+                window.append(correlation(means[0], means[2], SDs[0], SDs[2]))
+                window.append(correlation(means[1], means[2], SDs[1], SDs[2]))
+                means, SDs = [], []
+                means.append(mean(feature_raw))
+                SDs.append(std(feature_raw))
         window.append(GENUINE_LABEL)
         windows.append(window)
 
     for i in range(int(no_rows_per_file/2), no_rows_per_file,no_rows_per_window):
-        window = []
+        window, means, SDs = [], [], []
         for j in range(NO_OF_FEATURES):
             feature_raw = data.iloc[i:i + no_rows_per_window, j].values
-            window.append(max(feature_raw))
-            window.append(min(feature_raw))
-            window.append(mean(feature_raw))
-            window.append(std(feature_raw))
-            window.append(iqr(feature_raw))
-            window.append(var(feature_raw))
-            window.append(skew(feature_raw))
-            window.append(kurtosis(feature_raw))
+            window.extend(fe_stats(feature_raw))
+            means.append(mean(feature_raw))
+            SDs.append(std(feature_raw))
+            if j != 0 and j % 3 == 0 and CORRELATIONS or j == 8 and CORRELATIONS:
+                window.append(correlation(means[0], means[1], SDs[0], SDs[1]))
+                window.append(correlation(means[0], means[2], SDs[0], SDs[2]))
+                window.append(correlation(means[1], means[2], SDs[1], SDs[2]))
+                means, SDs = [], []
+                means.append(mean(feature_raw))
+                SDs.append(std(feature_raw))
         window.append(FRAUDULENT_LABEL)
         windows.append(window)
     return windows
+
+def fe_stats(feature):
+    feature_stats = []
+    feature_stats.append(max(feature))
+    feature_stats.append(min(feature))
+    feature_stats.append(mean(feature))
+    feature_stats.append(std(feature))
+    feature_stats.append(iqr(feature))
+    feature_stats.append(var(feature))
+    feature_stats.append(skew(feature))
+    feature_stats.append(kurtosis(feature))
+    return feature_stats
+
+def correlation(X, Y, sd_x, sd_y):
+    input_cov = [X, Y]
+    if (sd_x * sd_y) != 0:
+        return cov(input_cov)/(sd_x * sd_y)
+    else:
+        print('Can not calculate correlation')
+        return 0
 
 
 def load_experiment(start, end, experiment, frequency):
@@ -217,21 +243,27 @@ if __name__== '__main__':
         if CLASSIFIER == 'Random Forest':
             classifier = RandomForestClassifier(n_estimators=50, random_state=101)
         elif CLASSIFIER == 'SVM':
-            classifier = svm.SVC(kernel='rbf', C=100, gamma=0.0001, random_state=101)
+            classifier = svm.SVC(kernel='rbf', C=100, gamma=100, random_state=101)
         elif CLASSIFIER == 'Logistic Regression':
             classifier = LogisticRegression(C=100, random_state=101)
         else:
-            classifier = MLPClassifier(hidden_layer_sizes=(450,225), activation='tanh', random_state=101, alpha=0.01, max_iter=400)
+            classifier = MLPClassifier(hidden_layer_sizes=(72,36), activation='logistic', random_state=101, alpha=0.01, max_iter=400)
 
     precision, avg_train_time, avg_test_time = 0, 0, 0
     for i in range(NO_OF_FILES):
         print('Training User',i+1)
         start_time = timer()
         if FEATURE_ENGINEERING:
-            if WINDOW == 5:
-                train_user(classifier, x[i], y[i], 324, 72)
+            if CORRELATIONS:
+                if WINDOW == 5:
+                    train_user(classifier, x[i], y[i], 324, 81)
+                else:
+                    train_user(classifier, x[i], y[i], 1620, 81)
             else:
-                train_user(classifier, x[i], y[i], 1620, 72)
+                if WINDOW == 5:
+                    train_user(classifier, x[i], y[i], 324, 72)
+                else:
+                    train_user(classifier, x[i], y[i], 1620, 72)
         elif HZ == 100:
             if WINDOW == 5:
                 #5 Seconds Training 100 Hz
@@ -252,10 +284,16 @@ if __name__== '__main__':
         print('Testing User ',i+1)
         start_time = timer()
         if FEATURE_ENGINEERING:
-            if WINDOW == 5:
-                predictions = test_user(classifier, test_x[i], 108, 72)
+            if CORRELATIONS:
+                if WINDOW == 5:
+                    predictions = test_user(classifier, test_x[i], 108, 81)
+                else:
+                    predictions = test_user(classifier, test_x[i], 540, 81)
             else:
-                predictions = test_user(classifier, test_x[i], 540, 72)
+                if WINDOW == 5:
+                    predictions = test_user(classifier, test_x[i], 108, 72)
+                else:
+                    predictions = test_user(classifier, test_x[i], 540, 72)
         elif HZ == 100:
             if WINDOW == 5:
                 # 5 Seconds Testing 100 Hz
