@@ -5,9 +5,10 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.linear_model import LogisticRegression
 from sklearn import preprocessing, svm
 from sklearn.neural_network import MLPClassifier
-from numpy import reshape, mean, std, var, cov
+from numpy import reshape, mean, std, var, cov, abs, power
 from timeit import default_timer as timer
 from scipy.stats import iqr, skew, kurtosis
+from scipy.fftpack import fft
 
 NO_OF_FILES = 65
 NO_OF_FEATURES = 9
@@ -95,6 +96,7 @@ def fe_stats(feature):
     feature_stats.append(var(feature))
     feature_stats.append(skew(feature))
     feature_stats.append(kurtosis(feature))
+    feature_stats.append(calculate_energy(feature))
     return feature_stats
 
 def correlation(X, Y, sd_x, sd_y):
@@ -104,6 +106,14 @@ def correlation(X, Y, sd_x, sd_y):
     else:
         print('Can not calculate correlation')
         return 0
+
+def calculate_energy(feature):
+    energy = 0
+    dft_values = fft(feature)
+    for i in range(0,len(feature)):
+        energy = energy + power(abs(dft_values[i]), 2)
+    energy = energy/len(feature)
+    return energy
 
 
 def load_experiment(start, end, experiment, frequency):
@@ -256,14 +266,14 @@ if __name__== '__main__':
         if FEATURE_ENGINEERING:
             if CORRELATIONS:
                 if WINDOW == 5:
+                    train_user(classifier, x[i], y[i], 324, 90)
+                else:
+                    train_user(classifier, x[i], y[i], 1620, 90)
+            else:
+                if WINDOW == 5:
                     train_user(classifier, x[i], y[i], 324, 81)
                 else:
                     train_user(classifier, x[i], y[i], 1620, 81)
-            else:
-                if WINDOW == 5:
-                    train_user(classifier, x[i], y[i], 324, 72)
-                else:
-                    train_user(classifier, x[i], y[i], 1620, 72)
         elif HZ == 100:
             if WINDOW == 5:
                 #5 Seconds Training 100 Hz
@@ -286,14 +296,14 @@ if __name__== '__main__':
         if FEATURE_ENGINEERING:
             if CORRELATIONS:
                 if WINDOW == 5:
+                    predictions = test_user(classifier, test_x[i], 108, 90)
+                else:
+                    predictions = test_user(classifier, test_x[i], 540, 90)
+            else:
+                if WINDOW == 5:
                     predictions = test_user(classifier, test_x[i], 108, 81)
                 else:
                     predictions = test_user(classifier, test_x[i], 540, 81)
-            else:
-                if WINDOW == 5:
-                    predictions = test_user(classifier, test_x[i], 108, 72)
-                else:
-                    predictions = test_user(classifier, test_x[i], 540, 72)
         elif HZ == 100:
             if WINDOW == 5:
                 # 5 Seconds Testing 100 Hz
