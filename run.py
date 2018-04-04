@@ -5,7 +5,7 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.linear_model import LogisticRegression
 from sklearn import preprocessing, svm
 from sklearn.neural_network import MLPClassifier
-from numpy import reshape, mean, std, var, cov, abs, power
+from numpy import reshape, mean, std, var, cov, abs, power, sqrt
 from timeit import default_timer as timer
 from scipy.stats import iqr, skew, kurtosis
 from scipy.fftpack import fft
@@ -29,6 +29,7 @@ SCALING = 'Standardization'
 #Normalization
 FEATURE_ENGINEERING = True
 CORRELATIONS = True
+LENGTHS_ANGLES = True
 
 
 #For 5 second windows -> 162000 rows total, 500 rows per window -> 1st half genuine & second half fraudulent
@@ -52,8 +53,15 @@ def create_window(data, no_rows_per_file, no_rows_per_window):
 def create_window_FE(data, no_rows_per_file, no_rows_per_window):
     windows = []
     for i in range(0,int(no_rows_per_file/2),no_rows_per_window):
-        window, means, SDs = [], [], []
+        window, means, SDs, accelerometer, gyroscope, magnetometer = [], [], [], [], [], []
         for j in range(NO_OF_FEATURES):
+            if LENGTHS_ANGLES:
+                if j < 3:
+                    accelerometer.extend(data.iloc[i:i + no_rows_per_window, j].values)
+                elif 3 <= j < 6:
+                    gyroscope.extend(data.iloc[i:i + no_rows_per_window, j].values)
+                else:
+                    magnetometer.extend(data.iloc[i:i + no_rows_per_window, j].values)
             feature_raw = data.iloc[i:i + no_rows_per_window, j].values
             window.extend(fe_stats(feature_raw))
             means.append(mean(feature_raw))
@@ -65,12 +73,33 @@ def create_window_FE(data, no_rows_per_file, no_rows_per_window):
                 means, SDs = [], []
                 means.append(mean(feature_raw))
                 SDs.append(std(feature_raw))
+        if LENGTHS_ANGLES:
+            accelerometer_lengths = calculate_lengths_of_vectors(accelerometer, int(no_rows_per_window))
+            gyroscope_lengths = calculate_lengths_of_vectors(gyroscope, int(no_rows_per_window))
+            magnetometer_lengths = calculate_lengths_of_vectors(magnetometer, int(no_rows_per_window))
+            accelerometer_angles = calculate_angles(accelerometer, accelerometer_lengths, int(no_rows_per_window))
+            gyroscope_angles = calculate_angles(gyroscope, gyroscope_lengths, int(no_rows_per_window))
+            magnetometer_angles = calculate_angles(magnetometer, magnetometer_lengths, int(no_rows_per_window))
+            window.append(mean(accelerometer_lengths))
+            window.append(mean(gyroscope_lengths))
+            window.append(mean(magnetometer_lengths))
+            for j in range(3):
+                window.append(mean(accelerometer_angles[j]))
+                window.append(mean(gyroscope_angles[j]))
+                window.append(mean(magnetometer_angles[j]))
         window.append(GENUINE_LABEL)
         windows.append(window)
 
     for i in range(int(no_rows_per_file/2), no_rows_per_file,no_rows_per_window):
-        window, means, SDs = [], [], []
+        window, means, SDs, accelerometer, gyroscope, magnetometer = [], [], [], [], [], []
         for j in range(NO_OF_FEATURES):
+            if LENGTHS_ANGLES:
+                if j < 3:
+                    accelerometer.extend(data.iloc[i:i + no_rows_per_window, j].values)
+                elif 3 <= j < 6:
+                    gyroscope.extend(data.iloc[i:i + no_rows_per_window, j].values)
+                else:
+                    magnetometer.extend(data.iloc[i:i + no_rows_per_window, j].values)
             feature_raw = data.iloc[i:i + no_rows_per_window, j].values
             window.extend(fe_stats(feature_raw))
             means.append(mean(feature_raw))
@@ -82,6 +111,20 @@ def create_window_FE(data, no_rows_per_file, no_rows_per_window):
                 means, SDs = [], []
                 means.append(mean(feature_raw))
                 SDs.append(std(feature_raw))
+        if LENGTHS_ANGLES:
+            accelerometer_lengths = calculate_lengths_of_vectors(accelerometer, int(no_rows_per_window))
+            gyroscope_lengths = calculate_lengths_of_vectors(gyroscope, int(no_rows_per_window))
+            magnetometer_lengths = calculate_lengths_of_vectors(magnetometer, int(no_rows_per_window))
+            accelerometer_angles = calculate_angles(accelerometer, accelerometer_lengths, int(no_rows_per_window))
+            gyroscope_angles = calculate_angles(gyroscope, gyroscope_lengths, int(no_rows_per_window))
+            magnetometer_angles = calculate_angles(magnetometer, magnetometer_lengths, int(no_rows_per_window))
+            window.append(mean(accelerometer_lengths))
+            window.append(mean(gyroscope_lengths))
+            window.append(mean(magnetometer_lengths))
+            for j in range(3):
+                window.append(mean(accelerometer_angles[j]))
+                window.append(mean(gyroscope_angles[j]))
+                window.append(mean(magnetometer_angles[j]))
         window.append(FRAUDULENT_LABEL)
         windows.append(window)
     return windows
@@ -114,6 +157,28 @@ def calculate_energy(feature):
         energy = energy + power(abs(dft_values[i]), 2)
     energy = energy/len(feature)
     return energy
+
+def calculate_lengths_of_vectors(instrument_measures, no_of_rows):
+    lengths = []
+    for i in range(0, no_of_rows):
+        x = instrument_measures[i]
+        y = instrument_measures[i + no_of_rows]
+        z = instrument_measures[i + (no_of_rows * 2)]
+        lengths.append(calculate_vector_length(x, y, z))
+    return lengths
+
+def calculate_vector_length(x, y, z):
+    return sqrt(power(x, 2) + power(y, 2) + power(z, 2))
+
+def calculate_angles(instrument_measures, lengths, no_of_rows):
+    x_angles = []
+    y_angles = []
+    z_angles = []
+    for i in range(no_of_rows):
+        x_angles.append(instrument_measures[i]/lengths[i])
+        y_angles.append(instrument_measures[i + no_of_rows]/lengths[i])
+        z_angles.append(instrument_measures[i + no_of_rows*2]/lengths[i])
+    return [x_angles, y_angles, z_angles]
 
 
 def load_experiment(start, end, experiment, frequency):
@@ -265,10 +330,16 @@ if __name__== '__main__':
         start_time = timer()
         if FEATURE_ENGINEERING:
             if CORRELATIONS:
-                if WINDOW == 5:
-                    train_user(classifier, x[i], y[i], 324, 90)
+                if LENGTHS_ANGLES:
+                    if WINDOW == 5:
+                        train_user(classifier, x[i], y[i], 324, 198)
+                    else:
+                        test_user(classifier, x[i], y[i], 1620, 198)
                 else:
-                    train_user(classifier, x[i], y[i], 1620, 90)
+                    if WINDOW == 5:
+                        train_user(classifier, x[i], y[i], 324, 90)
+                    else:
+                        train_user(classifier, x[i], y[i], 1620, 90)
             else:
                 if WINDOW == 5:
                     train_user(classifier, x[i], y[i], 324, 81)
@@ -295,10 +366,16 @@ if __name__== '__main__':
         start_time = timer()
         if FEATURE_ENGINEERING:
             if CORRELATIONS:
-                if WINDOW == 5:
-                    predictions = test_user(classifier, test_x[i], 108, 90)
+                if LENGTHS_ANGLES:
+                    if WINDOW == 5:
+                        predictions = test_user(classifier, test_x[i], 108, 198)
+                    else:
+                        predictions = test_user(classifier, test_x[i], 540, 198)
                 else:
-                    predictions = test_user(classifier, test_x[i], 540, 90)
+                    if WINDOW == 5:
+                        predictions = test_user(classifier, test_x[i], 108, 90)
+                    else:
+                        predictions = test_user(classifier, test_x[i], 540, 90)
             else:
                 if WINDOW == 5:
                     predictions = test_user(classifier, test_x[i], 108, 81)
