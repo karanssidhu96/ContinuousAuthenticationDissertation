@@ -316,7 +316,7 @@ if __name__== '__main__':
         seperate_data_from_labels(testing_window, test_x, test_y)
 
         if CLASSIFIER == 'Random Forest':
-            classifier = RandomForestClassifier(n_estimators=50, random_state=101)
+            classifier = RandomForestClassifier(n_estimators=250, random_state=101)
         elif CLASSIFIER == 'SVM':
             classifier = svm.SVC(kernel='rbf', C=100, gamma=100, random_state=101)
         elif CLASSIFIER == 'Logistic Regression':
@@ -332,9 +332,9 @@ if __name__== '__main__':
             if CORRELATIONS:
                 if LENGTHS_ANGLES:
                     if WINDOW == 5:
-                        train_user(classifier, x[i], y[i], 324, 198)
+                        train_user(classifier, x[i], y[i], 324, 102)
                     else:
-                        test_user(classifier, x[i], y[i], 1620, 198)
+                        test_user(classifier, x[i], y[i], 1620, 102)
                 else:
                     if WINDOW == 5:
                         train_user(classifier, x[i], y[i], 324, 90)
@@ -368,9 +368,9 @@ if __name__== '__main__':
             if CORRELATIONS:
                 if LENGTHS_ANGLES:
                     if WINDOW == 5:
-                        predictions = test_user(classifier, test_x[i], 108, 198)
+                        predictions = test_user(classifier, test_x[i], 108, 102)
                     else:
-                        predictions = test_user(classifier, test_x[i], 540, 198)
+                        predictions = test_user(classifier, test_x[i], 540, 102)
                 else:
                     if WINDOW == 5:
                         predictions = test_user(classifier, test_x[i], 108, 90)
